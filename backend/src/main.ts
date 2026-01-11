@@ -18,7 +18,7 @@ async function bootstrap() {
   app.use(compression());
 
   // CORS
-  const corsOrigins = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000')
+  const corsOrigins = configService.get<string>('CORS_ORIGIN', 'http://localhost:3000,https://rent-roll-frontend.vercel.app,https://rent-roll-frontend-kb.vercel.app')
     .split(',')
     .map((origin) => origin.trim());
 
