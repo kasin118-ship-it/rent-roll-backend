@@ -1,6 +1,6 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
 import { RentContract } from './rent-contract.entity';
-import { Unit } from '../units/unit.entity';
+
 import { RentPeriod } from './rent-period.entity';
 import { Building } from '../buildings/building.entity';
 
@@ -16,8 +16,7 @@ export class ContractUnit {
     @Column({ name: 'contract_id' })
     contractId: string;
 
-    @Column({ name: 'unit_id', nullable: true })
-    unitId: string;
+
 
     @Column({ name: 'building_id', nullable: true })
     buildingId: string;
@@ -36,9 +35,7 @@ export class ContractUnit {
     @JoinColumn({ name: 'contract_id' })
     contract: RentContract;
 
-    @ManyToOne(() => Unit, (unit) => unit.contractUnits, { nullable: true })
-    @JoinColumn({ name: 'unit_id' })
-    unit: Unit;
+
 
     @ManyToOne(() => Building)
     @JoinColumn({ name: 'building_id' })

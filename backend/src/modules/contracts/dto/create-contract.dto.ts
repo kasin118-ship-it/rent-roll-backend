@@ -59,7 +59,5 @@ export class CreateContractDto {
     @IsOptional()
     notes?: string;
 
-    // Optional legacy support (can be removed if frontend is fully updated)
-    @IsOptional()
-    unitIds?: string[];
+
 }

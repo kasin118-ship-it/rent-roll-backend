@@ -58,6 +58,13 @@ export class BuildingsService {
             rentedAreaMap.set(row.buildingId, parseFloat(row.rentedArea) || 0);
         });
 
+        console.log('--- OCCUPANCY DATA DEBUG ---');
+        console.log('Rented Areas by Building ID:', Object.fromEntries(rentedAreaMap));
+        buildings.forEach(b => {
+            console.log(`Building: ${b.name}, ID: ${b.id}, Total Area: ${b.rentableArea}, Rented: ${rentedAreaMap.get(b.id) || 0}`);
+        });
+        console.log('----------------------------');
+
         // Add occupancy data to each building
         return buildings.map(b => {
             const totalArea = Number(b.rentableArea) || 0;

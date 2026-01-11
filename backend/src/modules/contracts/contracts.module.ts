@@ -6,7 +6,6 @@ import { RentContract } from './rent-contract.entity';
 import { ContractUnit } from './contract-unit.entity';
 import { RentPeriod } from './rent-period.entity';
 import { ContractDocument } from './contract-document.entity';
-import { Unit } from '../units/unit.entity';
 import { CompaniesModule } from '../companies/companies.module';
 
 @Module({
@@ -16,7 +15,6 @@ import { CompaniesModule } from '../companies/companies.module';
             ContractUnit,
             RentPeriod,
             ContractDocument,
-            Unit,
         ]),
         CompaniesModule,
     ],

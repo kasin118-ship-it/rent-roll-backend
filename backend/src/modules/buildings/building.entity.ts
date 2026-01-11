@@ -2,7 +2,7 @@ import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../shared/entities/base.entity';
 import { Company } from '../companies/company.entity';
 import { Floor } from '../floors/floor.entity';
-import { Unit } from '../units/unit.entity';
+
 
 @Entity('buildings')
 export class Building extends BaseEntity {
@@ -42,6 +42,5 @@ export class Building extends BaseEntity {
     @OneToMany(() => Floor, (floor) => floor.building)
     floors: Floor[];
 
-    @OneToMany(() => Unit, (unit) => unit.building)
-    units: Unit[];
+
 }

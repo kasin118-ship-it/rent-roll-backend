@@ -24,8 +24,11 @@ export class ReportsController {
     }
 
     @Get('occupancy')
-    async getOccupancyReport(@CurrentUser() user: any) {
-        return this.reportsService.getOccupancyReport(user.companyId);
+    async getOccupancyReport(
+        @CurrentUser() user: any,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.reportsService.getOccupancyReport(user.companyId, endDate);
     }
 
     @Get('expiring')

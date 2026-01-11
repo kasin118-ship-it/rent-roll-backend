@@ -112,7 +112,7 @@ export class ReportsService {
         };
     }
 
-    async getOccupancyReport(companyId: string): Promise<{
+    async getOccupancyReport(companyId: string, endDate?: string): Promise<{
         totalUnits: number;
         occupiedUnits: number;
         vacantUnits: number;
@@ -127,14 +127,16 @@ export class ReportsService {
             occupancyRate: number;
         }>;
     }> {
-        // Fix: Calculate occupancy based on ACTIVE contracts, not unit status column
+        // Fix: Calculate occupancy based on ACTIVE contracts at the end of period (or NOW if not specified)
+        const targetDate = endDate ? endDate : new Date().toISOString().split('T')[0];
+
         const result = await this.dataSource.query(
             `SELECT 
                 b.id as buildingId,
                 b.name as buildingName,
                 -- Total Area (Rentable Area from Building)
                 b.rentable_area as totalArea,
-                -- Occupied Area (Sum of areas in active contracts)
+                -- Occupied Area (Sum of areas in active contracts valid at target date)
                 COALESCE(SUM(
                     CASE 
                         WHEN rc.status = 'active' AND rc.deleted_at IS NULL AND cur.id IS NOT NULL 
@@ -145,13 +147,13 @@ export class ReportsService {
             FROM buildings b
             LEFT JOIN contract_units cur ON cur.building_id = b.id
             LEFT JOIN rent_contracts rc ON cur.contract_id = rc.id 
-                AND rc.status = 'active' 
-                AND rc.start_date <= NOW() 
-                AND rc.end_date >= NOW()
+                AND rc.status = 'active'
+                AND rc.start_date <= ? 
+                AND rc.end_date >= ?
             WHERE b.company_id = ?
                 AND b.deleted_at IS NULL
             GROUP BY b.id`,
-            [companyId],
+            [targetDate, targetDate, companyId],
         );
 
         let totalArea = 0;

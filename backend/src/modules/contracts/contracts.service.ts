@@ -9,7 +9,7 @@ import { Repository, DataSource, In, LessThan, MoreThan, Between } from 'typeorm
 import { RentContract, ContractStatus } from './rent-contract.entity';
 import { ContractUnit } from './contract-unit.entity';
 import { RentPeriod } from './rent-period.entity';
-import { Unit, UnitStatus } from '../units/unit.entity';
+
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
 import { ContractDocument } from './contract-document.entity';
@@ -24,8 +24,7 @@ export class ContractsService {
         private readonly contractUnitRepository: Repository<ContractUnit>,
         @InjectRepository(RentPeriod)
         private readonly rentPeriodRepository: Repository<RentPeriod>,
-        @InjectRepository(Unit)
-        private readonly unitRepository: Repository<Unit>,
+
         @InjectRepository(ContractDocument)
         private readonly documentRepository: Repository<ContractDocument>,
         private readonly gcsService: GcsService,
@@ -78,7 +77,6 @@ export class ContractsService {
                         buildingId: spaceDto.buildingId,
                         floor: spaceDto.floor,
                         areaSqm: spaceDto.areaSqm,
-                        // unitId is now optional/nullable, skipped
                     });
                     const savedUnit = await queryRunner.manager.save(contractUnit);
 
@@ -143,13 +141,7 @@ export class ContractsService {
                 status: ContractStatus.ACTIVE,
             });
 
-            // Update unit statuses to occupied
-            const unitIds = contract.contractUnits.map((cu) => cu.unitId);
-            await queryRunner.manager.update(
-                Unit,
-                { id: In(unitIds) },
-                { status: UnitStatus.OCCUPIED },
-            );
+
 
             await queryRunner.commitTransaction();
             return this.findOne(id, companyId);
@@ -178,13 +170,7 @@ export class ContractsService {
                 status: ContractStatus.TERMINATED,
             });
 
-            // Update unit statuses to vacant
-            const unitIds = contract.contractUnits.map((cu) => cu.unitId);
-            await queryRunner.manager.update(
-                Unit,
-                { id: In(unitIds) },
-                { status: UnitStatus.VACANT },
-            );
+
 
             await queryRunner.commitTransaction();
             return this.findOne(id, companyId);
@@ -212,7 +198,7 @@ export class ContractsService {
         const newContract = await this.create(
             {
                 ...renewDto,
-                unitIds: previousContract.contractUnits.map((cu) => cu.unitId),
+                // unitIds removed
             },
             userId,
             companyId,
@@ -241,8 +227,6 @@ export class ContractsService {
             .createQueryBuilder('c')
             .leftJoinAndSelect('c.customer', 'customer')
             .leftJoinAndSelect('c.contractUnits', 'cu')
-            .leftJoinAndSelect('cu.unit', 'unit')
-            .leftJoinAndSelect('unit.building', 'unitBuilding')
             .leftJoinAndSelect('cu.building', 'directBuilding')
             .leftJoinAndSelect('cu.rentPeriods', 'rp')
             .where('c.company_id = :companyId', { companyId })
@@ -259,7 +243,7 @@ export class ContractsService {
 
         if (filters?.buildingId) {
             // Check both relation paths
-            query.andWhere('(unitBuilding.id = :buildingId OR directBuilding.id = :buildingId)', { buildingId: filters.buildingId });
+            query.andWhere('directBuilding.id = :buildingId', { buildingId: filters.buildingId });
         }
 
         return query.getMany();
@@ -271,8 +255,6 @@ export class ContractsService {
             relations: [
                 'customer',
                 'contractUnits',
-                'contractUnits.unit',
-                'contractUnits.unit.building',
                 'contractUnits.building',
                 'contractUnits.rentPeriods',
                 'documents',
@@ -297,7 +279,7 @@ export class ContractsService {
                 status: ContractStatus.ACTIVE,
                 endDate: Between(today, futureDate),
             },
-            relations: ['customer', 'contractUnits', 'contractUnits.unit'],
+            relations: ['customer', 'contractUnits'],
             order: { endDate: 'ASC' },
         });
     }

@@ -74,7 +74,7 @@ export class SeedService {
     }
 
     async seed() {
-        this.logger.log("Starting Seed Process...");
+        this.logger.log("Starting Seed Process with Capacity Validation...");
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -85,208 +85,195 @@ export class SeedService {
             if (!company) {
                 company = queryRunner.manager.create(Company, {
                     name: "Global Lumber Co., Ltd.",
-                    // code: "GL",
-                    addressNo: "123",
-                    street: "Main St",
-                    subDistrict: "Pathum Wan",
-                    district: "Pathum Wan",
-                    province: "Bangkok",
-                    postalCode: "10330",
-                    phone: "02-123-4567",
-                    taxId: "1234567890123"
+                    addressNo: "123", street: "Main St", subDistrict: "Pathum Wan", district: "Pathum Wan",
+                    province: "Bangkok", postalCode: "10330", phone: "02-123-4567", taxId: "1234567890123"
                 });
                 company = await queryRunner.manager.save(company);
             }
 
-            // 2. Roles
+            // 2. Roles & Admin
             let adminRole = await queryRunner.manager.findOne(Role, { where: { name: 'admin' } });
             if (!adminRole) {
                 adminRole = queryRunner.manager.create(Role, { name: 'admin', description: 'Administrator' });
                 await queryRunner.manager.save(adminRole);
             }
-
-            // 3. Admin User
-            // Need to import argon2 manually if not available in service (usually handled in auth service but doing here for seed)
-            // Assuming argon2 is available via import
             let adminUser = await queryRunner.manager.findOne(User, { where: { email: 'admin@kingbridge.com' } });
             if (!adminUser) {
                 const hashedPassword = await argon2.hash('admin123');
                 adminUser = queryRunner.manager.create(User, {
-                    username: 'admin',
-                    email: 'admin@kingbridge.com',
-                    passwordHash: hashedPassword,
-                    fullName: 'System Administrator',
-                    isActive: true,
-                    companyId: company.id,
-                    roleId: adminRole.id, // Assign role
+                    username: 'admin', email: 'admin@kingbridge.com', passwordHash: hashedPassword,
+                    fullName: 'System Administrator', isActive: true, companyId: company.id, roleId: adminRole.id,
                 });
                 adminUser = await queryRunner.manager.save(adminUser);
             }
 
-
-            // 4. Buildings (Create 3 buildings)
+            // 3. Buildings
+            this.logger.log('Seeding Buildings...');
             const buildings: Building[] = [];
+            const buildingNames = ['Kingbridge Tower', 'Meridian Plaza', 'Skyline Center']; // Fixed names
             for (let i = 0; i < 3; i++) {
-                const name = i === 0 ? "Kingbridge Tower" : faker.location.streetAddress();
                 const building = queryRunner.manager.create(Building, {
-                    companyId: company.id, // Required field
-                    name: name,
+                    companyId: company.id,
+                    name: buildingNames[i],
                     code: `KT-${String.fromCharCode(65 + i)}`,
-                    totalFloors: faker.number.int({ min: 10, max: 40 }),
-                    rentableArea: faker.number.int({ min: 5000, max: 30000 }),
+                    totalFloors: faker.number.int({ min: 20, max: 40 }),
+                    rentableArea: faker.number.float({ min: 10000, max: 30000, fractionDigits: 2 }), // Clear float
                 });
                 buildings.push(await queryRunner.manager.save(building));
             }
 
-            // 5. Customers (Create 100 customers) - FAST INSERT
+            // 4. Customers
             this.logger.log('Creating 100 customers...');
             const customerData: Partial<Customer>[] = [];
             for (let i = 0; i < 100; i++) {
                 const type = faker.helpers.arrayElement(['corporate', 'individual']);
-                const custName = type === 'corporate' ? faker.company.name() : faker.person.fullName();
                 customerData.push({
                     companyId: company.id,
                     type: type as any,
-                    name: custName,
+                    name: type === 'corporate' ? faker.company.name() : faker.person.fullName(),
                     taxId: faker.finance.accountNumber(13),
-                    addressNo: faker.location.buildingNumber(),
-                    street: faker.location.street(),
-                    subDistrict: faker.helpers.arrayElement(['Pathum Wan', 'Khlong Toei', 'Bang Rak', 'Sathon']),
-                    district: faker.helpers.arrayElement(['Pathum Wan', 'Khlong Toei', 'Bang Rak', 'Sathon']),
-                    province: 'Bangkok',
-                    postalCode: faker.helpers.arrayElement(['10110', '10120', '10330', '10500']),
-                    phone: faker.string.numeric(10),
-                    email: faker.internet.email(),
-                    contactPerson: faker.person.fullName(),
+                    addressNo: faker.location.buildingNumber(), street: faker.location.street(),
+                    subDistrict: 'Pathum Wan', district: 'Pathum Wan', province: 'Bangkok', postalCode: '10330',
+                    phone: faker.string.numeric(10), email: faker.internet.email(), contactPerson: faker.person.fullName(),
                 });
             }
             await queryRunner.manager.insert(Customer, customerData);
             const customers = await queryRunner.manager.find(Customer, { where: { companyId: company.id } });
-            this.logger.log(`Created ${customers.length} customers`);
 
-            // 6. Contracts - OPTIMIZED BATCH PROCESSING
-            // Prepare ALL contracts first, then ALL units, then ALL periods
-            this.logger.log('Creating 300 contracts with floors and pricing tiers...');
+            // 5. Contracts with Capacity Logic
+            this.logger.log('Planning contracts with capacity check...');
 
-            // Step 1: Create all contracts in one insert
-            const contractData: Partial<RentContract>[] = [];
-            const contractMeta: { contractNo: string; building: Building; startDate: Date; endDate: Date }[] = [];
+            // Capacity Tracker: buildingId -> Intervals
+            const buildingUsage: Record<string, { start: number, end: number, area: number }[]> = {};
+            buildings.forEach(b => buildingUsage[b.id] = []);
 
-            for (let i = 0; i < 50; i++) {
-                const customer = faker.helpers.arrayElement(customers);
+            const getMaxOccupancy = (buildingId: string, startDate: Date, endDate: Date): number => {
+                const usage = buildingUsage[buildingId];
+                const startMs = startDate.getTime();
+                const endMs = endDate.getTime();
+
+                // Sweep Line Algorithm
+                const points: { time: number; type: 'start' | 'end'; area: number }[] = [];
+
+                // Add existing intervals that overlap
+                usage.forEach(u => {
+                    if (u.start < endMs && u.end > startMs) {
+                        points.push({ time: Math.max(startMs, u.start), type: 'start', area: u.area });
+                        points.push({ time: Math.min(endMs, u.end), type: 'end', area: u.area });
+                    }
+                });
+
+                if (points.length === 0) return 0;
+
+                points.sort((a, b) => (a.time - b.time) || (a.type === 'start' ? -1 : 1));
+
+                let maxArea = 0;
+                let currentArea = 0;
+                points.forEach(p => {
+                    if (p.type === 'start') {
+                        currentArea += p.area;
+                        if (currentArea > maxArea) maxArea = currentArea;
+                    } else {
+                        currentArea -= p.area;
+                    }
+                });
+                return maxArea;
+            };
+
+            const plannedContracts: any[] = [];
+            const plannedUnits: any[] = [];
+            let attempts = 0;
+            const target = 100; // Target number of contracts
+
+            while (plannedContracts.length < target && attempts < 500) {
+                attempts++;
                 const building = faker.helpers.arrayElement(buildings);
-                const startDate = faker.date.between({ from: '2023-01-01', to: '2025-12-31' });
+                const startDate = faker.date.between({ from: '2023-01-01', to: '2025-06-01' });
                 const endDate = new Date(startDate);
-                endDate.setFullYear(endDate.getFullYear() + faker.number.int({ min: 1, max: 5 }));
-                const contractNo = `CNT-${startDate.getFullYear()}-${String(i + 1).padStart(4, '0')}`;
+                endDate.setFullYear(endDate.getFullYear() + faker.number.int({ min: 1, max: 3 }));
 
-                contractData.push({
+                // Try small unit sizes to fit more
+                const area = faker.number.float({ min: 50, max: 400, fractionDigits: 2 });
+
+                // Check capacity
+                const currentMax = getMaxOccupancy(building.id, startDate, endDate);
+                // Leave buffer (e.g., max 90% occupancy)
+                if (currentMax + area > (building.rentableArea * 0.9)) {
+                    continue;
+                }
+
+                // If valid, add to plan
+                buildingUsage[building.id].push({ start: startDate.getTime(), end: endDate.getTime(), area });
+
+                const contractNo = `CNT-${startDate.getFullYear()}-${String(plannedContracts.length + 1).padStart(4, '0')}`;
+                const customer = faker.helpers.arrayElement(customers);
+
+                plannedContracts.push({
                     contractNo,
                     customerId: customer.id,
                     companyId: company.id,
-                    status: faker.helpers.arrayElement(['active', 'active', 'active', 'draft', 'expired']) as any,
-                    startDate: startDate,
-                    endDate: endDate,
-                    depositAmount: faker.number.int({ min: 50000, max: 500000 }),
+                    status: 'active', // Prioritize active for demo
+                    startDate,
+                    endDate,
+                    depositAmount: 50000,
                     createdBy: adminUser.id,
                 });
-                contractMeta.push({ contractNo, building, startDate, endDate });
+
+                plannedUnits.push({
+                    contractNo,
+                    buildingId: building.id,
+                    floor: faker.number.int({ min: 1, max: building.totalFloors }).toString(),
+                    areaSqm: area,
+                    startDate,
+                    endDate
+                });
             }
 
-            // Single insert for all 300 contracts
-            await queryRunner.manager.insert(RentContract, contractData);
-            this.logger.log('Inserted 300 contracts, fetching IDs...');
+            // Batch Inserts
+            this.logger.log(`Inserting ${plannedContracts.length} confirmed contracts...`);
+            await queryRunner.manager.insert(RentContract, plannedContracts); // Simple props
 
-            // Fetch saved contracts by contractNo for ID mapping
+            // Fetch IDs to link Units
             const savedContracts = await queryRunner.manager.find(RentContract, {
-                where: { companyId: company.id },
-                order: { contractNo: 'ASC' }
+                where: { companyId: company.id }, select: ['id', 'contractNo']
             });
-            const contractMap = new Map(savedContracts.map(c => [c.contractNo, c]));
+            const contractMap = new Map(savedContracts.map(c => [c.contractNo, c.id]));
 
-            // Step 2: Create all units
-            const unitData: Partial<ContractUnit>[] = [];
-            const unitMeta: { contractNo: string; unitIdx: number; startDate: Date; endDate: Date; area: number }[] = [];
-
-            for (let i = 0; i < 50; i++) {
-                const meta = contractMeta[i];
-                const contract = contractMap.get(meta.contractNo);
-                if (!contract) continue;
-
-                const numFloors = faker.number.int({ min: 1, max: 3 });
-                for (let f = 0; f < numFloors; f++) {
-                    const floor = faker.number.int({ min: 1, max: meta.building.totalFloors });
-                    const area = faker.number.float({ min: 50, max: 800, fractionDigits: 2 });
-
-                    unitData.push({
-                        contractId: contract.id,
-                        buildingId: meta.building.id,
-                        floor: floor.toString(),
-                        areaSqm: area,
-                    });
-                    unitMeta.push({ contractNo: meta.contractNo, unitIdx: unitData.length - 1, startDate: meta.startDate, endDate: meta.endDate, area });
-                }
-            }
-
-            // Single insert for all units
+            const unitData = plannedUnits.map(p => ({
+                contractId: contractMap.get(p.contractNo),
+                buildingId: p.buildingId,
+                floor: p.floor,
+                areaSqm: p.areaSqm
+            }));
             await queryRunner.manager.insert(ContractUnit, unitData);
-            this.logger.log(`Inserted ${unitData.length} contract units, fetching IDs...`);
 
-            // Fetch all saved units
-            const savedUnits = await queryRunner.manager.find(ContractUnit, {
-                where: { contractId: In(savedContracts.map(c => c.id)) },
-                order: { createdAt: 'ASC' }
-            });
-
-            // Step 3: Create all rent periods
+            // Fetch Units to create Periods
+            const savedUnits = await queryRunner.manager.find(ContractUnit, { relations: ['contract'] });
             const periodData: Partial<RentPeriod>[] = [];
 
-            for (let idx = 0; idx < savedUnits.length && idx < unitMeta.length; idx++) {
-                const unit = savedUnits[idx];
-                const meta = unitMeta[idx];
-                const numTiers = faker.number.int({ min: 1, max: 3 });
-                const contractDurationMs = meta.endDate.getTime() - meta.startDate.getTime();
-                const tierDurationMs = contractDurationMs / numTiers;
-                const baseRentPerSqm = faker.number.int({ min: 400, max: 1000 });
-                const tierIncrease = faker.number.int({ min: 30, max: 100 });
+            savedUnits.forEach(u => {
+                const start = new Date(u.contract.startDate);
+                const end = new Date(u.contract.endDate);
+                const rentAmount = Math.floor(u.areaSqm * 600); // Simple rate
+                const serviceFee = Math.floor(u.areaSqm * 200);
 
-                for (let t = 0; t < numTiers; t++) {
-                    const tierStart = new Date(meta.startDate.getTime() + t * tierDurationMs);
-                    let tierEnd = new Date(meta.startDate.getTime() + (t + 1) * tierDurationMs);
-                    if (t === numTiers - 1) {
-                        tierEnd = new Date(meta.endDate);
-                    } else {
-                        tierEnd.setDate(tierEnd.getDate() - 1);
-                    }
-
-                    const rentPerSqm = baseRentPerSqm + t * tierIncrease;
-                    const rent = rentPerSqm * meta.area;
-
-                    // Fix: Apply 70/30 Split strictly (Aligns with seedContracts logic)
-                    const rentAmount = Math.floor(rent * 0.7);
-                    const serviceFee = Math.floor(rent * 0.3);
-
-                    periodData.push({
-                        contractUnitId: unit.id,
-                        startDate: tierStart,
-                        endDate: tierEnd,
-                        rentAmount,
-                        serviceFee,
-                    });
-                }
-            }
-
-            // Single insert for all periods
+                periodData.push({
+                    contractUnitId: u.id,
+                    startDate: start,
+                    endDate: end,
+                    rentAmount,
+                    serviceFee
+                });
+            });
             await queryRunner.manager.insert(RentPeriod, periodData);
-            this.logger.log(`Inserted ${periodData.length} rent periods`);
-
 
             await queryRunner.commitTransaction();
-            this.logger.log("Seeding complete!");
-            return { success: true, message: 'Mock data generated successfully' };
+            this.logger.log(`Seed Complete: ${plannedContracts.length} contracts created.`);
+            return { success: true, count: plannedContracts.length };
+
         } catch (err) {
-            this.logger.error("Seeding failed", err);
             await queryRunner.rollbackTransaction();
+            this.logger.error("Seed Failed", err);
             throw err;
         } finally {
             await queryRunner.release();
