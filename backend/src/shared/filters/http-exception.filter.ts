@@ -24,6 +24,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
             `Http Status: ${status} Error Message: ${JSON.stringify(message)}`,
         );
 
+        // Log full error details for non-HttpExceptions
+        if (!(exception instanceof HttpException)) {
+            this.logger.error('Full exception:', exception);
+            if (exception instanceof Error) {
+                this.logger.error('Stack trace:', exception.stack);
+            }
+        }
+
         response.status(status).json({
             statusCode: status,
             timestamp: new Date().toISOString(),
