@@ -432,7 +432,8 @@ export class SeedService {
                 startDate.setFullYear(startDate.getFullYear() - faker.number.int({ min: 1, max: 3 }));
             } else {
                 status = faker.helpers.arrayElement(['active', 'active', 'active', 'draft']);
-                startDate = faker.date.between({ from: '2023-01-01', to: '2025-12-31' }); // Current/Past start
+                // Updated date range to include 2026 for current year coverage
+                startDate = faker.date.between({ from: '2024-01-01', to: '2026-06-30' });
                 endDate = new Date(startDate);
                 endDate.setFullYear(endDate.getFullYear() + faker.number.int({ min: 1, max: 3 }));
             }
