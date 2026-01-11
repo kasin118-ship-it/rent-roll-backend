@@ -9,7 +9,7 @@ import { RolesGuard } from '../../shared/guards/roles.guard';
 import { CompaniesService } from '../companies/companies.service';
 
 @Controller('buildings')
-// @UseGuards(AuthGuard('jwt'), RolesGuard) // TODO: Re-enable for production
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class BuildingsController {
     constructor(
         private readonly buildingsService: BuildingsService,

@@ -10,7 +10,7 @@ import { ContractStatus } from './rent-contract.entity';
 import { CompaniesService } from '../companies/companies.service';
 
 @Controller('contracts')
-// @UseGuards(AuthGuard('jwt'), RolesGuard) // TODO: Re-enable for production
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class ContractsController {
     constructor(
         private readonly contractsService: ContractsService,
