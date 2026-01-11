@@ -58,8 +58,7 @@ export class ReportsService {
         COALESCE(SUM(rp.rent_amount), 0) as totalRent,
         COUNT(DISTINCT rc.id) as contractCount
       FROM buildings b
-      LEFT JOIN units u ON u.building_id = b.id
-      LEFT JOIN contract_units cu ON cu.unit_id = u.id
+      LEFT JOIN contract_units cu ON cu.building_id = b.id
       LEFT JOIN rent_contracts rc ON cu.contract_id = rc.id AND rc.status = 'active'
       LEFT JOIN rent_periods rp ON rp.contract_id = rc.id
       WHERE b.company_id = ?
@@ -128,54 +127,65 @@ export class ReportsService {
             occupancyRate: number;
         }>;
     }> {
+        // Fix: Calculate occupancy based on ACTIVE contracts, not unit status column
         const result = await this.dataSource.query(
             `SELECT 
-        b.id as buildingId,
-        b.name as buildingName,
-        COUNT(u.id) as total,
-        SUM(CASE WHEN u.status = 'occupied' THEN 1 ELSE 0 END) as occupied,
-        SUM(CASE WHEN u.status = 'vacant' THEN 1 ELSE 0 END) as vacant,
-        SUM(CASE WHEN u.status = 'maintenance' THEN 1 ELSE 0 END) as maintenance
-      FROM buildings b
-      LEFT JOIN units u ON u.building_id = b.id AND u.deleted_at IS NULL
-      WHERE b.company_id = ?
-        AND b.deleted_at IS NULL
-      GROUP BY b.id`,
+                b.id as buildingId,
+                b.name as buildingName,
+                -- Total Area (Rentable Area from Building)
+                b.rentable_area as totalArea,
+                -- Occupied Area (Sum of areas in active contracts)
+                COALESCE(SUM(
+                    CASE 
+                        WHEN rc.status = 'active' AND rc.deleted_at IS NULL AND cur.id IS NOT NULL 
+                        THEN cur.area_sqm 
+                        ELSE 0 
+                    END
+                ), 0) as occupiedArea
+            FROM buildings b
+            LEFT JOIN contract_units cur ON cur.building_id = b.id
+            LEFT JOIN rent_contracts rc ON cur.contract_id = rc.id 
+                AND rc.status = 'active' 
+                AND rc.start_date <= NOW() 
+                AND rc.end_date >= NOW()
+            WHERE b.company_id = ?
+                AND b.deleted_at IS NULL
+            GROUP BY b.id`,
             [companyId],
         );
 
-        let totalUnits = 0;
-        let occupiedUnits = 0;
-        let vacantUnits = 0;
-        let maintenanceUnits = 0;
+        let totalArea = 0;
+        let occupiedArea = 0;
+        let vacantArea = 0;
 
         const byBuilding = result.map((row: any) => {
-            const total = parseInt(row.total) || 0;
-            const occupied = parseInt(row.occupied) || 0;
-            const vacant = parseInt(row.vacant) || 0;
-            const maintenance = parseInt(row.maintenance) || 0;
+            const bTotal = parseFloat(row.totalArea) || 0;
+            // Cap occupied at total to prevent >100% if data is dirty, but logic should be correct now
+            let bOccupied = parseFloat(row.occupiedArea) || 0;
+            if (bOccupied > bTotal) bOccupied = bTotal;
 
-            totalUnits += total;
-            occupiedUnits += occupied;
-            vacantUnits += vacant;
-            maintenanceUnits += maintenance;
+            const bVacant = Math.max(0, bTotal - bOccupied);
+
+            totalArea += bTotal;
+            occupiedArea += bOccupied;
+            vacantArea += bVacant;
 
             return {
                 buildingId: row.buildingId,
                 buildingName: row.buildingName,
-                total,
-                occupied,
-                vacant,
-                occupancyRate: total > 0 ? Math.round((occupied / total) * 100) : 0,
+                total: bTotal,
+                occupied: bOccupied,
+                vacant: bVacant,
+                occupancyRate: bTotal > 0 ? Math.round((bOccupied / bTotal) * 100) : 0,
             };
         });
 
         return {
-            totalUnits,
-            occupiedUnits,
-            vacantUnits,
-            maintenanceUnits,
-            occupancyRate: totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0,
+            totalUnits: totalArea, // Renaming for frontend compatibility (actually Area)
+            occupiedUnits: occupiedArea,
+            vacantUnits: vacantArea,
+            maintenanceUnits: 0, // Deprecated concept for now
+            occupancyRate: totalArea > 0 ? Math.round((occupiedArea / totalArea) * 100) : 0,
             byBuilding,
         };
     }
@@ -192,13 +202,12 @@ export class ReportsService {
         rc.end_date as endDate,
         c.name as customerName,
         c.phone as customerPhone,
-        GROUP_CONCAT(CONCAT(b.name, ' - ', u.unit_no) SEPARATOR ', ') as units,
+        GROUP_CONCAT(CONCAT(b.name, ' - Floor ', cu.floor) SEPARATOR ', ') as units,
         SUM(rp.rent_amount) as totalRent
       FROM rent_contracts rc
       INNER JOIN customers c ON c.id = rc.customer_id
       LEFT JOIN contract_units cu ON cu.contract_id = rc.id
-      LEFT JOIN units u ON u.id = cu.unit_id
-      LEFT JOIN buildings b ON b.id = u.building_id
+      LEFT JOIN buildings b ON b.id = cu.building_id
       LEFT JOIN rent_periods rp ON rp.contract_id = rc.id
       WHERE rc.company_id = ?
         AND rc.status = 'active'
