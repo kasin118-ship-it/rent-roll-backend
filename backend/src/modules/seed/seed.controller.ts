@@ -1,7 +1,9 @@
-import { Controller, Post, Get } from '@nestjs/common';
+import { Controller, Post, Get, UseGuards } from '@nestjs/common';
 import { SeedService } from './seed.service';
+import { AuthGuard } from '@nestjs/passport';
 
 @Controller('seed')
+@UseGuards(AuthGuard('jwt'))
 export class SeedController {
     constructor(private readonly seedService: SeedService) { }
 
