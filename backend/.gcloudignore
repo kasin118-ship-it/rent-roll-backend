@@ -1,0 +1,10 @@
+# Files to ignore when uploading to Cloud Build
+node_modules/
+npm-debug.log
+.env
+.env.local
+dist/
+.git/
+.gitignore
+*.md
+.dockerignore
