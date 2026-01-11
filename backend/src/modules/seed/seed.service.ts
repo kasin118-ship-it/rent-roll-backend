@@ -172,7 +172,7 @@ export class SeedService {
             const contractData: Partial<RentContract>[] = [];
             const contractMeta: { contractNo: string; building: Building; startDate: Date; endDate: Date }[] = [];
 
-            for (let i = 0; i < 300; i++) {
+            for (let i = 0; i < 50; i++) {
                 const customer = faker.helpers.arrayElement(customers);
                 const building = faker.helpers.arrayElement(buildings);
                 const startDate = faker.date.between({ from: '2023-01-01', to: '2025-12-31' });
@@ -208,7 +208,7 @@ export class SeedService {
             const unitData: Partial<ContractUnit>[] = [];
             const unitMeta: { contractNo: string; unitIdx: number; startDate: Date; endDate: Date; area: number }[] = [];
 
-            for (let i = 0; i < 300; i++) {
+            for (let i = 0; i < 50; i++) {
                 const meta = contractMeta[i];
                 const contract = contractMap.get(meta.contractNo);
                 if (!contract) continue;
@@ -262,12 +262,16 @@ export class SeedService {
                     const rentPerSqm = baseRentPerSqm + t * tierIncrease;
                     const rent = rentPerSqm * meta.area;
 
+                    // Fix: Apply 70/30 Split strictly (Aligns with seedContracts logic)
+                    const rentAmount = Math.floor(rent * 0.7);
+                    const serviceFee = Math.floor(rent * 0.3);
+
                     periodData.push({
                         contractUnitId: unit.id,
                         startDate: tierStart,
                         endDate: tierEnd,
-                        rentAmount: Math.floor(rent),
-                        serviceFee: Math.floor(rent * faker.number.float({ min: 0.08, max: 0.15 })),
+                        rentAmount,
+                        serviceFee,
                     });
                 }
             }
@@ -419,7 +423,7 @@ export class SeedService {
         // Planning Phase
         const plannedContracts: any[] = [];
         const plannedUnits: any[] = [];
-        const targetCount = 300;
+        const targetCount = 50; // Reduced from 300 to prevent Vercel Timeout (10s limit)
         let attempts = 0;
         const maxAttempts = 1000; // Limit to prevent infinite loop
 

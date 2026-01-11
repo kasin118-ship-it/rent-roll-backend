@@ -47,6 +47,8 @@ export class BuildingsService {
             .addSelect('SUM(cu.area_sqm)', 'rentedArea')
             .innerJoin('cu.contract', 'c')
             .where('c.status = :status', { status: ContractStatus.ACTIVE })
+            .andWhere('c.start_date <= :now', { now: new Date() })
+            .andWhere('c.end_date >= :now', { now: new Date() })
             .andWhere('cu.building_id IS NOT NULL')
             .groupBy('cu.building_id')
             .getRawMany();
@@ -58,8 +60,11 @@ export class BuildingsService {
 
         // Add occupancy data to each building
         return buildings.map(b => {
-            const rentedArea = rentedAreaMap.get(b.id) || 0;
             const totalArea = Number(b.rentableArea) || 0;
+            // Cap rented area at total area to prevent >100% stats
+            let rentedArea = rentedAreaMap.get(b.id) || 0;
+            if (rentedArea > totalArea) rentedArea = totalArea;
+
             const occupancyRate = totalArea > 0 ? Math.round((rentedArea / totalArea) * 100) : 0;
 
             return {
