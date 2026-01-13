@@ -1,58 +1,67 @@
 import {
   IsString,
-  IsEmail,
   IsOptional,
-  IsEnum,
   MaxLength,
+  IsEnum,
+  IsEmail,
 } from 'class-validator';
-import { CustomerType } from '../customer.entity';
 
-export class CreateCustomerDto {
-  @IsEnum(CustomerType)
-  type: CustomerType;
-
+export class CreateOwnerDto {
   @IsString()
   @MaxLength(255)
   name: string;
 
   @IsString()
-  @IsOptional()
   @MaxLength(20)
+  @IsOptional()
   taxId?: string;
 
   @IsString()
+  @MaxLength(50)
   @IsOptional()
   addressNo?: string;
 
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   street?: string;
 
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   subDistrict?: string;
 
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   district?: string;
 
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   province?: string;
 
   @IsString()
+  @MaxLength(10)
   @IsOptional()
   postalCode?: string;
 
   @IsString()
+  @MaxLength(20)
   @IsOptional()
   phone?: string;
 
+  @IsString()
   @IsEmail()
   @IsOptional()
   email?: string;
 
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   contactPerson?: string;
+
+  @IsEnum(['active', 'inactive'])
+  @IsOptional()
+  status?: 'active' | 'inactive';
 }

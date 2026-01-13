@@ -8,24 +8,24 @@ import { RolesGuard } from '../../shared/guards/roles.guard';
 @Controller('audit')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AuditController {
-    constructor(private readonly auditService: AuditService) { }
+  constructor(private readonly auditService: AuditService) {}
 
-    @Get()
-    @Roles('admin')
-    async findAll(
-        @CurrentUser() user: any,
-        @Query('action') action?: string,
-        @Query('limit') limit?: string,
-    ) {
-        return this.auditService.findAll(user.companyId, {
-            action,
-            limit: limit ? parseInt(limit, 10) : 100,
-        });
-    }
+  @Get()
+  @Roles('admin')
+  async findAll(
+    @CurrentUser() user: any,
+    @Query('action') action?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.auditService.findAll(user.companyId, {
+      action,
+      limit: limit ? parseInt(limit, 10) : 100,
+    });
+  }
 
-    @Get(':id')
-    @Roles('admin')
-    async findOne(@Param('id') id: string, @CurrentUser() user: any) {
-        return this.auditService.findOne(id, user.companyId);
-    }
+  @Get(':id')
+  @Roles('admin')
+  async findOne(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.auditService.findOne(id, user.companyId);
+  }
 }

@@ -1,23 +1,12 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { BaseEntity } from '../../shared/entities/base.entity';
 import { Company } from '../companies/company.entity';
-import { RentContract } from '../contracts/rent-contract.entity';
+import { Building } from '../buildings/building.entity';
 
-export enum CustomerType {
-  INDIVIDUAL = 'individual',
-  CORPORATE = 'corporate',
-}
-
-@Entity('customers')
-export class Customer extends BaseEntity {
+@Entity('owners')
+export class Owner extends BaseEntity {
   @Column({ name: 'company_id' })
   companyId: string;
-
-  @Column({
-    type: 'enum',
-    enum: CustomerType,
-  })
-  type: CustomerType;
 
   @Column({ length: 255 })
   name: string;
@@ -52,11 +41,18 @@ export class Customer extends BaseEntity {
   @Column({ name: 'contact_person', length: 100, nullable: true })
   contactPerson: string;
 
+  @Column({
+    type: 'enum',
+    enum: ['active', 'inactive'],
+    default: 'active',
+  })
+  status: 'active' | 'inactive';
+
   // Relations
-  @ManyToOne(() => Company, (company) => company.customers)
+  @ManyToOne(() => Company)
   @JoinColumn({ name: 'company_id' })
   company: Company;
 
-  @OneToMany(() => RentContract, (contract) => contract.customer)
-  contracts: RentContract[];
+  @OneToMany(() => Building, (building) => building.owner)
+  buildings: Building[];
 }

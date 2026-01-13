@@ -2,39 +2,39 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 export interface RevenueReport {
-    totalRevenue: number;
-    activeContractCount: number;
-    averageRent: number;
-    revenueByBuilding: Array<{
-        buildingId: string;
-        buildingName: string;
-        totalRent: number;
-        contractCount: number;
-    }>;
-    monthlyTrend: Array<{
-        month: string;
-        revenue: number;
-    }>;
-    topCustomers: Array<{
-        customerId: string;
-        customerName: string;
-        totalRent: number;
-        contractCount: number;
-    }>;
+  totalRevenue: number;
+  activeContractCount: number;
+  averageRent: number;
+  revenueByBuilding: Array<{
+    buildingId: string;
+    buildingName: string;
+    totalRent: number;
+    contractCount: number;
+  }>;
+  monthlyTrend: Array<{
+    month: string;
+    revenue: number;
+  }>;
+  topCustomers: Array<{
+    customerId: string;
+    customerName: string;
+    totalRent: number;
+    contractCount: number;
+  }>;
 }
 
 @Injectable()
 export class ReportsService {
-    constructor(private readonly dataSource: DataSource) { }
+  constructor(private readonly dataSource: DataSource) {}
 
-    async getRevenueReport(
-        companyId: string,
-        startDate: string,
-        endDate: string,
-    ): Promise<RevenueReport> {
-        // Total Revenue and Contract Count
-        const summaryResult = await this.dataSource.query(
-            `SELECT 
+  async getRevenueReport(
+    companyId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<RevenueReport> {
+    // Total Revenue and Contract Count
+    const summaryResult = await this.dataSource.query(
+      `SELECT 
         COALESCE(SUM(rp.rent_amount), 0) as totalRevenue,
         COUNT(DISTINCT rc.id) as activeContractCount
       FROM rent_contracts rc
@@ -43,16 +43,18 @@ export class ReportsService {
         AND rc.status = 'active'
         AND rc.deleted_at IS NULL
         AND (rp.start_date <= ? AND rp.end_date >= ?)`,
-            [companyId, endDate, startDate],
-        );
+      [companyId, endDate, startDate],
+    );
 
-        const totalRevenue = parseFloat(summaryResult[0]?.totalRevenue) || 0;
-        const activeContractCount = parseInt(summaryResult[0]?.activeContractCount) || 0;
-        const averageRent = activeContractCount > 0 ? totalRevenue / activeContractCount : 0;
+    const totalRevenue = parseFloat(summaryResult[0]?.totalRevenue) || 0;
+    const activeContractCount =
+      parseInt(summaryResult[0]?.activeContractCount) || 0;
+    const averageRent =
+      activeContractCount > 0 ? totalRevenue / activeContractCount : 0;
 
-        // Revenue by Building
-        const revenueByBuilding = await this.dataSource.query(
-            `SELECT 
+    // Revenue by Building
+    const revenueByBuilding = await this.dataSource.query(
+      `SELECT 
         b.id as buildingId,
         b.name as buildingName,
         COALESCE(SUM(rp.rent_amount), 0) as totalRent,
@@ -65,12 +67,12 @@ export class ReportsService {
         AND b.deleted_at IS NULL
       GROUP BY b.id
       ORDER BY totalRent DESC`,
-            [companyId],
-        );
+      [companyId],
+    );
 
-        // Monthly Trend (Last 12 months)
-        const monthlyTrend = await this.dataSource.query(
-            `SELECT 
+    // Monthly Trend (Last 12 months)
+    const monthlyTrend = await this.dataSource.query(
+      `SELECT 
         DATE_FORMAT(rp.start_date, '%Y-%m') as month,
         SUM(rp.rent_amount) as revenue
       FROM rent_periods rp
@@ -80,12 +82,12 @@ export class ReportsService {
         AND rp.start_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
       GROUP BY month
       ORDER BY month`,
-            [companyId],
-        );
+      [companyId],
+    );
 
-        // Top Customers
-        const topCustomers = await this.dataSource.query(
-            `SELECT 
+    // Top Customers
+    const topCustomers = await this.dataSource.query(
+      `SELECT 
         c.id as customerId,
         c.name as customerName,
         COALESCE(SUM(rp.rent_amount), 0) as totalRent,
@@ -99,39 +101,44 @@ export class ReportsService {
       GROUP BY c.id
       ORDER BY totalRent DESC
       LIMIT 10`,
-            [companyId],
-        );
+      [companyId],
+    );
 
-        return {
-            totalRevenue,
-            activeContractCount,
-            averageRent,
-            revenueByBuilding,
-            monthlyTrend,
-            topCustomers,
-        };
-    }
+    return {
+      totalRevenue,
+      activeContractCount,
+      averageRent,
+      revenueByBuilding,
+      monthlyTrend,
+      topCustomers,
+    };
+  }
 
-    async getOccupancyReport(companyId: string, endDate?: string): Promise<{
-        totalUnits: number;
-        occupiedUnits: number;
-        vacantUnits: number;
-        maintenanceUnits: number;
-        occupancyRate: number;
-        byBuilding: Array<{
-            buildingId: string;
-            buildingName: string;
-            total: number;
-            occupied: number;
-            vacant: number;
-            occupancyRate: number;
-        }>;
-    }> {
-        // Fix: Calculate occupancy based on ACTIVE contracts at the end of period (or NOW if not specified)
-        const targetDate = endDate ? endDate : new Date().toISOString().split('T')[0];
+  async getOccupancyReport(
+    companyId: string,
+    endDate?: string,
+  ): Promise<{
+    totalUnits: number;
+    occupiedUnits: number;
+    vacantUnits: number;
+    maintenanceUnits: number;
+    occupancyRate: number;
+    byBuilding: Array<{
+      buildingId: string;
+      buildingName: string;
+      total: number;
+      occupied: number;
+      vacant: number;
+      occupancyRate: number;
+    }>;
+  }> {
+    // Fix: Calculate occupancy based on ACTIVE contracts at the end of period (or NOW if not specified)
+    const targetDate = endDate
+      ? endDate
+      : new Date().toISOString().split('T')[0];
 
-        const result = await this.dataSource.query(
-            `SELECT 
+    const result = await this.dataSource.query(
+      `SELECT 
                 b.id as buildingId,
                 b.name as buildingName,
                 -- Total Area (Rentable Area from Building)
@@ -153,51 +160,55 @@ export class ReportsService {
             WHERE b.company_id = ?
                 AND b.deleted_at IS NULL
             GROUP BY b.id`,
-            [targetDate, targetDate, companyId],
-        );
+      [targetDate, targetDate, companyId],
+    );
 
-        let totalArea = 0;
-        let occupiedArea = 0;
-        let vacantArea = 0;
+    let totalArea = 0;
+    let occupiedArea = 0;
+    let vacantArea = 0;
 
-        const byBuilding = result.map((row: any) => {
-            const bTotal = parseFloat(row.totalArea) || 0;
-            // Cap occupied at total to prevent >100% if data is dirty, but logic should be correct now
-            let bOccupied = parseFloat(row.occupiedArea) || 0;
-            if (bOccupied > bTotal) bOccupied = bTotal;
+    const byBuilding = result.map((row: any) => {
+      const bTotal = parseFloat(row.totalArea) || 0;
+      // Cap occupied at total to prevent >100% if data is dirty, but logic should be correct now
+      let bOccupied = parseFloat(row.occupiedArea) || 0;
+      if (bOccupied > bTotal) bOccupied = bTotal;
 
-            const bVacant = Math.max(0, bTotal - bOccupied);
+      const bVacant = Math.max(0, bTotal - bOccupied);
 
-            totalArea += bTotal;
-            occupiedArea += bOccupied;
-            vacantArea += bVacant;
+      totalArea += bTotal;
+      occupiedArea += bOccupied;
+      vacantArea += bVacant;
 
-            return {
-                buildingId: row.buildingId,
-                buildingName: row.buildingName,
-                total: bTotal,
-                occupied: bOccupied,
-                vacant: bVacant,
-                occupancyRate: bTotal > 0 ? Math.round((bOccupied / bTotal) * 100) : 0,
-            };
-        });
+      return {
+        buildingId: row.buildingId,
+        buildingName: row.buildingName,
+        total: bTotal,
+        occupied: bOccupied,
+        vacant: bVacant,
+        occupancyRate: bTotal > 0 ? Math.round((bOccupied / bTotal) * 100) : 0,
+      };
+    });
 
-        return {
-            totalUnits: totalArea, // Renaming for frontend compatibility (actually Area)
-            occupiedUnits: occupiedArea,
-            vacantUnits: vacantArea,
-            maintenanceUnits: 0, // Deprecated concept for now
-            occupancyRate: totalArea > 0 ? Math.round((occupiedArea / totalArea) * 100) : 0,
-            byBuilding,
-        };
-    }
+    return {
+      totalUnits: totalArea, // Renaming for frontend compatibility (actually Area)
+      occupiedUnits: occupiedArea,
+      vacantUnits: vacantArea,
+      maintenanceUnits: 0, // Deprecated concept for now
+      occupancyRate:
+        totalArea > 0 ? Math.round((occupiedArea / totalArea) * 100) : 0,
+      byBuilding,
+    };
+  }
 
-    async getExpiringContractsReport(companyId: string, days: number): Promise<any[]> {
-        const futureDate = new Date();
-        futureDate.setDate(futureDate.getDate() + days);
+  async getExpiringContractsReport(
+    companyId: string,
+    days: number,
+  ): Promise<any[]> {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + days);
 
-        return this.dataSource.query(
-            `SELECT 
+    return this.dataSource.query(
+      `SELECT 
         rc.id,
         rc.contract_no as contractNo,
         rc.start_date as startDate,
@@ -218,7 +229,7 @@ export class ReportsService {
         AND rc.end_date >= NOW()
       GROUP BY rc.id
       ORDER BY rc.end_date ASC`,
-            [companyId, futureDate.toISOString().split('T')[0]],
-        );
-    }
+      [companyId, futureDate.toISOString().split('T')[0]],
+    );
+  }
 }

@@ -5,9 +5,9 @@ import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
 
 @Module({
-    imports: [TypeOrmModule.forFeature([Customer])],
-    controllers: [CustomersController],
-    providers: [CustomersService],
-    exports: [CustomersService],
+  imports: [TypeOrmModule.forFeature([Customer])],
+  controllers: [CustomersController],
+  providers: [CustomersService],
+  exports: [CustomersService],
 })
-export class CustomersModule { }
+export class CustomersModule {}

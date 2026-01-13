@@ -12,6 +12,7 @@ import { UsersModule } from './modules/users/users.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { BuildingsModule } from './modules/buildings/buildings.module';
 import { FloorsModule } from './modules/floors/floors.module';
+import { OwnersModule } from './modules/owners/owners.module';
 
 import { CustomersModule } from './modules/customers/customers.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
@@ -81,6 +82,7 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     CompaniesModule,
     BuildingsModule,
     FloorsModule,
+    OwnersModule,
     CustomersModule,
     ContractsModule,
     AlertsModule,
@@ -106,4 +108,4 @@ import { ResponseInterceptor } from './shared/interceptors/response.interceptor'
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -12,20 +12,19 @@ import { User } from '../users/user.entity';
 import { Role } from '../users/role.entity';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([
-            Building,
-            Customer,
-            RentContract,
-            ContractUnit,
-            RentPeriod,
-            Company,
-            User,
-            Role
-        ])
-    ],
-    controllers: [SeedController],
-    providers: [SeedService],
+  imports: [
+    TypeOrmModule.forFeature([
+      Building,
+      Customer,
+      RentContract,
+      ContractUnit,
+      RentPeriod,
+      Company,
+      User,
+      Role,
+    ]),
+  ],
+  controllers: [SeedController],
+  providers: [SeedService],
 })
-export class SeedModule { }
-
+export class SeedModule {}
