@@ -1,9 +1,12 @@
-name: Deploy to Cloud Run
+name: Deploy Backend to Cloud Run
 
 on:
   push:
     branches:
       - master
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -35,6 +38,7 @@ jobs:
         run: gcloud auth configure-docker
 
       - name: Build and Push Docker image
+        working-directory: ./backend
         run: |
           docker build -t gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }} .
           docker push gcr.io/$PROJECT_ID/$SERVICE_NAME:${{ github.sha }}
