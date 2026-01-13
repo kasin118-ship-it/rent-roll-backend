@@ -27,6 +27,12 @@ export class Building extends BaseEntity {
     @Column({ name: 'construction_area', type: 'decimal', precision: 12, scale: 2, default: 0 })
     constructionArea: number;
 
+    @Column({ name: 'owner_company', length: 255, nullable: true })
+    ownerCompany: string;
+
+    @Column({ name: 'owner_name', length: 255, nullable: true })
+    ownerName: string;
+
     @Column({
         type: 'enum',
         enum: ['active', 'inactive'],

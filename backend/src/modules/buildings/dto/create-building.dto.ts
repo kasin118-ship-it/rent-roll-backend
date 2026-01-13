@@ -28,6 +28,16 @@ export class CreateBuildingDto {
     @IsOptional()
     constructionArea?: number;
 
+    @IsString()
+    @MaxLength(255)
+    @IsOptional()
+    ownerCompany?: string;
+
+    @IsString()
+    @MaxLength(255)
+    @IsOptional()
+    ownerName?: string;
+
     @IsEnum(['active', 'inactive'])
     @IsOptional()
     status?: 'active' | 'inactive';
